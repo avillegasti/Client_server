@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OS-BRU | Central Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="dashboard">
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <div class="logo">
+                <span class="logo-icon">📡</span>
+                <span class="logo-text">OS-BRU</span>
+            </div>
+        </div>
+        <nav class="sidebar-nav">
+            <ul>
+                <li class="active" data-section="overview">
+                    <a href="#overview"><span class="nav-icon">📊</span> Overview</a>
+                </li>
+                <li data-section="telemetry">
+                    <a href="#telemetry"><span class="nav-icon">📈</span> Telemetry</a>
+                </li>
+                <li data-section="gallery">
+                    <a href="#gallery"><span class="nav-icon">🖼️</span> Image Gallery</a>
+                </li>
+                <li data-section="logs">
+                    <a href="#logs"><span class="nav-icon">📄</span> Raw Logs</a>
+                </li>
+            </ul>
+        </nav>
+        <div class="sidebar-footer">
+            <div class="status-indicator">
+                <span class="status-dot online"></span> System Online
+            </div>
+        </div>
+    </aside>
+
+    <main class="main-content">
+        <header class="top-bar">
+            <div class="page-title">
+                <h1 id="section-title">Overview</h1>
+            </div>
+            <div class="top-controls">
+                <div class="control-group">
+                    <label for="deviceSelect">Device</label>
+                    <select id="deviceSelect">
+                        <option value="">All Devices</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label for="startDate">From</label>
+                    <input type="date" id="startDate">
+                </div>
+                <div class="control-group">
+                    <label for="endDate">To</label>
+                    <input type="date" id="endDate">
+                </div>
+                <button id="refreshBtn" class="btn btn-primary">Refresh</button>
+            </div>
+        </header>
+
+        <div class="content-wrapper">
+            <!-- Overview Section -->
+            <section id="section-overview" class="content-section">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon temp">🌡️</div>
+                        <div class="stat-info">
+                            <span class="stat-label">Avg. Temperature</span>
+                            <span class="stat-value" id="avg-temp">-- °C</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon hum">💧</div>
+                        <div class="stat-info">
+                            <span class="stat-label">Avg. Humidity</span>
+                            <span class="stat-value" id="avg-hum">-- %</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon batt">🔋</div>
+                        <div class="stat-info">
+                            <span class="stat-label">Avg. Battery</span>
+                            <span class="stat-value" id="avg-batt">-- V</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon images">📷</div>
+                        <div class="stat-info">
+                            <span class="stat-label">Total Images</span>
+                            <span class="stat-value" id="total-images">--</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="overview-charts">
+                    <div class="chart-container large">
+                        <div class="chart-header">
+                            <h3>Environmental Trends</h3>
+                        </div>
+                        <div class="chart-body">
+                            <canvas id="mainCombinedChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Telemetry Section -->
+            <section id="section-telemetry" class="content-section hidden">
+                <div class="charts-grid">
+                    <div class="chart-container">
+                        <div class="chart-header"><h3>Temperature (°C)</h3></div>
+                        <div class="chart-body"><canvas id="tempChart"></canvas></div>
+                    </div>
+                    <div class="chart-container">
+                        <div class="chart-header"><h3>Humidity (%)</h3></div>
+                        <div class="chart-body"><canvas id="humChart"></canvas></div>
+                    </div>
+                    <div class="chart-container">
+                        <div class="chart-header"><h3>Battery (V)</h3></div>
+                        <div class="chart-body"><canvas id="battChart"></canvas></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Gallery Section -->
+            <section id="section-gallery" class="content-section hidden">
+                <div id="imageGrid" class="image-grid">
+                    <!-- Images will be inserted here -->
+                </div>
+            </section>
+
+            <!-- Logs Section -->
+            <section id="section-logs" class="content-section hidden">
+                <div class="card logs-card">
+                    <div class="table-container">
+                        <table id="logsTable">
+                            <thead>
+                                <tr>
+                                    <th>Device</th>
+                                    <th>Timestamp</th>
+                                    <th>Sensor</th>
+                                    <th>Value</th>
+                                    <th>Unit</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Logs will be inserted here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- Modal for image preview -->
+    <div id="imageModal" class="modal">
+        <div class="modal-overlay"></div>
+        <div class="modal-content-wrapper">
+            <span class="close-modal">&times;</span>
+            <img class="modal-image" id="imgPreview">
+            <div id="caption" class="modal-caption"></div>
+        </div>
+    </div>
+
+    <script src="config.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>

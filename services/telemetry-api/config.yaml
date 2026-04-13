@@ -1,0 +1,31 @@
+# MQTT Configuration
+mqtt:
+  broker: "84.88.36.25"
+  port: 1883
+  user: "admin"
+  pass: "i2cati2cat"
+  topic_prefix: "devices/os_bru"
+
+# Minio Object Storage
+minio:
+  endpoint: "84.88.36.22:9000"
+  access_key: "minioadmin"
+  secret_key: "change_this_to_a_long_password"
+  bucket: "os-bru-images"
+  secure: false
+
+# Database Configuration (External PostgreSQL)
+database:
+  engine: "postgresql"
+  host: "172.27.12.100"      # Replace with your PostgreSQL Server IP
+  port: 5432
+  user: "alessandro_villegas"                 # Replace with your DB user
+  pass: "alessandroalessandro"            # Replace with your DB password
+  name: "use_cases"              # Replace with your DB name
+  path: "telemetry.db"          # Fallback for local testing only
+
+# API Configuration
+api:
+  telemetry_port: 8001
+  image_port: 8002
+  host: "0.0.0.0"

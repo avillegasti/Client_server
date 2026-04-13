@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  ingestor:
+    build: ./services/ingestor
+    volumes:
+      - ./services/ingestor:/app
+    restart: always
+
+  telemetry-api:
+    build: ./services/telemetry-api
+    volumes:
+      - ./services/telemetry-api:/app
+    restart: always
+
+  image-api:
+    build: ./services/image-api
+    volumes:
+      - ./services/image-api:/app
+    restart: always
+
+  gateway:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./services/gateway/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./services/frontend:/usr/share/nginx/html:ro
+    depends_on:
+      - telemetry-api
+      - image-api
