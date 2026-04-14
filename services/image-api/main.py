@@ -7,6 +7,8 @@ import uvicorn
 from config import config
 import logging
 import io
+import mimetypes
+from urllib.parse import quote
 from database import get_db_connection, get_cursor
 
 # Logger
@@ -24,13 +26,66 @@ app.add_middleware(
     allow_headers=["*"],
 ),
 
+
+DEFAULT_IMAGE_PREFIX = "OS_BRU/"
+
+
+def get_image_prefix(camera: Optional[str] = None) -> str:
+    if camera:
+        return f"{DEFAULT_IMAGE_PREFIX}{camera.strip('/')}/"
+    return DEFAULT_IMAGE_PREFIX
+
+
+def build_download_url(object_name: str) -> str:
+    return f"/api/images/download/{quote(object_name, safe='/')}"
+
+
+def lookup_object_path(filename: str) -> Optional[str]:
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = get_cursor(conn)
+        placeholder = "%s" if config.get("database", {}).get("engine") == "postgresql" else "?"
+        query = (
+            "SELECT minio_path FROM os_bru.images "
+            f"WHERE filename = {placeholder} ORDER BY captured_at DESC LIMIT 1"
+        )
+        cursor.execute(query, (filename,))
+        row = cursor.fetchone()
+        return row["minio_path"] if row else None
+    except Exception as e:
+        logger.error(f"Error resolving MinIO path for {filename}: {e}")
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+
+def list_images_from_minio(camera: Optional[str] = None):
+    prefix = get_image_prefix(camera=camera)
+    images = minio_client.list_images(prefix=prefix)
+    return [
+        {
+            "name": img["name"].rsplit("/", 1)[-1],
+            "url": build_download_url(img["object_name"]),
+            "last_modified": img["last_modified"],
+        }
+        for img in images
+    ]
+
+
 @app.get("/images")
-def get_images(device: Optional[str] = None):
+def get_images(device: Optional[str] = None, camera: Optional[str] = None):
+    conn = None
     try:
         conn = get_db_connection()
         cursor = get_cursor(conn)
         
-        query = 'SELECT i.filename, i.captured_at FROM os_bru.images i JOIN "Uses_cases".devices d ON i.device_id = d.id'
+        query = (
+            'SELECT i.filename, i.minio_path, i.captured_at '
+            'FROM os_bru.images i '
+            'JOIN "Uses_cases".devices d ON i.device_id = d.id'
+        )
         params = []
         
         # Check engine to use correct placeholder
@@ -39,33 +94,58 @@ def get_images(device: Optional[str] = None):
         if device:
             query += f" WHERE d.serial = {placeholder}"
             params.append(device)
+        else:
+            query += " WHERE 1=1"
+
+        image_prefix = get_image_prefix(camera=camera)
+        query += f" AND i.minio_path LIKE {placeholder}"
+        params.append(f"{image_prefix}%")
             
         query += " ORDER BY i.captured_at DESC"
         
         cursor.execute(query, params)
         rows = cursor.fetchall()
-        conn.close()
         
         images = []
         for row in rows:
+            object_name = row["minio_path"] or row["filename"]
+            captured_at = row["captured_at"]
             images.append({
                 "name": row['filename'],
-                "url": f"/api/images/download/{row['filename']}",
-                "last_modified": row['captured_at'].isoformat()
+                "url": build_download_url(object_name),
+                "last_modified": captured_at.isoformat() if hasattr(captured_at, "isoformat") else str(captured_at)
             })
+
+        if images:
+            return images
+
+        logger.info(
+            "No image metadata rows found for device=%s camera=%s. Falling back to MinIO listing.",
+            device,
+            camera,
+        )
+        return list_images_from_minio(camera=camera)
             
-        return images
-        
     except Exception as e:
         logger.error(f"Error fetching images from DB: {e}")
-        # Fallback to minio if DB fails? For now, empty list.
-        return []
+        return list_images_from_minio(camera=camera)
+    finally:
+        if conn:
+            conn.close()
 
-@app.get("/download/{filename}")
-def download_image(filename: str):
+@app.get("/download/{object_name:path}")
+def download_image(object_name: str):
     try:
-        data = minio_client.get_image_data(filename)
-        return StreamingResponse(io.BytesIO(data), media_type="image/jpeg")
+        resolved_object_name = object_name
+        if "/" not in object_name:
+            resolved_object_name = lookup_object_path(object_name) or object_name
+
+        data = minio_client.get_image_data(resolved_object_name)
+        if data is None:
+            return Response(status_code=404)
+
+        media_type = mimetypes.guess_type(resolved_object_name)[0] or "application/octet-stream"
+        return StreamingResponse(io.BytesIO(data), media_type=media_type)
     except Exception as e:
         logger.error(f"Error streaming image: {e}")
         return Response(status_code=404)

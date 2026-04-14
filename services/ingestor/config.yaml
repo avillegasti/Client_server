@@ -11,7 +11,7 @@ minio:
   endpoint: "84.88.36.22:9000"
   access_key: "minioadmin"
   secret_key: "change_this_to_a_long_password"
-  bucket: "os-bru-images"
+  bucket: "images"
   secure: false
 
 
