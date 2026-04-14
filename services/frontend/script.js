@@ -76,19 +76,37 @@ async function loadDevices() {
 }
 
 async function loadData() {
-    const device = document.getElementById('deviceSelect').value;
+    const deviceSelect = document.getElementById('deviceSelect');
+    const device = deviceSelect.value;
+    const selectedOption = deviceSelect.options[deviceSelect.selectedIndex];
+    const camera = device && selectedOption
+        ? selectedOption.textContent.trim().toLowerCase()
+        : '';
     const startDate = document.getElementById('startDate').value;
     const endDate = document.getElementById('endDate').value;
 
-    let query = `?limit=1000`;
-    if (device) query += `&device=${device}`;
-    if (startDate) query += `&start_date=${startDate}`;
-    if (endDate) query += `&end_date=${endDate}`;
+    const telemetryParams = new URLSearchParams({ limit: '1000' });
+    const imageParams = new URLSearchParams();
+
+    if (device) {
+        telemetryParams.set('device', device);
+    }
+    if (camera) {
+        imageParams.set('camera', camera);
+    }
+    if (startDate) {
+        telemetryParams.set('start_date', startDate);
+        imageParams.set('start_date', startDate);
+    }
+    if (endDate) {
+        telemetryParams.set('end_date', endDate);
+        imageParams.set('end_date', endDate);
+    }
 
     try {
         const [telemetry, images] = await Promise.all([
-            fetch(`${API_BASE}/api/telemetry/telemetry${query}`).then(r => r.json()),
-            fetch(`${API_BASE}/api/images/images${device ? '?device=' + device : ''}`).then(r => r.json())
+            fetch(`${API_BASE}/api/telemetry/telemetry?${telemetryParams.toString()}`).then(r => r.json()),
+            fetch(`${API_BASE}/api/images/images?${imageParams.toString()}`).then(r => r.json())
         ]);
 
         updateStats(telemetry, images);

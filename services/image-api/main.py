@@ -8,6 +8,7 @@ from config import config
 import logging
 import io
 import mimetypes
+from datetime import datetime, timedelta
 from urllib.parse import quote
 from database import get_db_connection, get_cursor
 
@@ -40,6 +41,12 @@ def build_download_url(object_name: str) -> str:
     return f"/api/images/download/{quote(object_name, safe='/')}"
 
 
+def parse_image_date_range(start_date: Optional[str] = None, end_date: Optional[str] = None):
+    start_dt = datetime.fromisoformat(start_date) if start_date else None
+    end_dt = datetime.fromisoformat(end_date) + timedelta(days=1) if end_date else None
+    return start_dt, end_dt
+
+
 def lookup_object_path(filename: str) -> Optional[str]:
     conn = None
     try:
@@ -61,9 +68,14 @@ def lookup_object_path(filename: str) -> Optional[str]:
             conn.close()
 
 
-def list_images_from_minio(camera: Optional[str] = None):
+def list_images_from_minio(
+    camera: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+):
     prefix = get_image_prefix(camera=camera)
-    images = minio_client.list_images(prefix=prefix)
+    start_dt, end_dt = parse_image_date_range(start_date=start_date, end_date=end_date)
+    images = minio_client.list_images(prefix=prefix, start_dt=start_dt, end_dt=end_dt)
     return [
         {
             "name": img["name"].rsplit("/", 1)[-1],
@@ -75,7 +87,12 @@ def list_images_from_minio(camera: Optional[str] = None):
 
 
 @app.get("/images")
-def get_images(device: Optional[str] = None, camera: Optional[str] = None):
+def get_images(
+    device: Optional[str] = None,
+    camera: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+):
     conn = None
     try:
         conn = get_db_connection()
@@ -100,6 +117,14 @@ def get_images(device: Optional[str] = None, camera: Optional[str] = None):
         image_prefix = get_image_prefix(camera=camera)
         query += f" AND i.minio_path LIKE {placeholder}"
         params.append(f"{image_prefix}%")
+
+        start_dt, end_dt = parse_image_date_range(start_date=start_date, end_date=end_date)
+        if start_dt:
+            query += f" AND i.captured_at >= {placeholder}"
+            params.append(start_dt)
+        if end_dt:
+            query += f" AND i.captured_at < {placeholder}"
+            params.append(end_dt)
             
         query += " ORDER BY i.captured_at DESC"
         
@@ -124,11 +149,11 @@ def get_images(device: Optional[str] = None, camera: Optional[str] = None):
             device,
             camera,
         )
-        return list_images_from_minio(camera=camera)
+        return list_images_from_minio(camera=camera, start_date=start_date, end_date=end_date)
             
     except Exception as e:
         logger.error(f"Error fetching images from DB: {e}")
-        return list_images_from_minio(camera=camera)
+        return list_images_from_minio(camera=camera, start_date=start_date, end_date=end_date)
     finally:
         if conn:
             conn.close()
