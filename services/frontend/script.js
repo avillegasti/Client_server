@@ -1,5 +1,10 @@
 const API_BASE = CONFIG.API_BASE;
 const deviceDirectory = new Map();
+const CHART_COLORS = {
+    temperature: '#e1542f',
+    humidity: '#4f88c6',
+    battery: '#5ea37a'
+};
 const overviewChartOptions = {
     responsive: true,
     maintainAspectRatio: false,
@@ -338,8 +343,8 @@ function initCharts() {
     mainCombinedChart = new Chart(document.getElementById('mainCombinedChart'), {
         type: 'line',
         data: { labels: [], datasets: [
-            { label: 'Temp', borderColor: '#ef4444', data: [], yAxisID: 'y' },
-            { label: 'Humidity', borderColor: '#0ea5e9', data: [], yAxisID: 'y1' }
+            { label: 'Temp', borderColor: CHART_COLORS.temperature, data: [], yAxisID: 'y' },
+            { label: 'Humidity', borderColor: CHART_COLORS.humidity, data: [], yAxisID: 'y1' }
         ]},
         options: overviewChartOptions
     });
@@ -351,9 +356,9 @@ function initCharts() {
         options: commonOptions
     });
 
-    tempChart = createChart('tempChart', 'Temperature (°C)', '#ef4444');
-    humChart = createChart('humChart', 'Humidity (%)', '#0ea5e9');
-    battChart = createChart('battChart', 'Battery (V)', '#10b981');
+    tempChart = createChart('tempChart', 'Temperature (°C)', CHART_COLORS.temperature);
+    humChart = createChart('humChart', 'Humidity (%)', CHART_COLORS.humidity);
+    battChart = createChart('battChart', 'Battery (V)', CHART_COLORS.battery);
 }
 
 function updateCharts(data, selectedDevice) {
@@ -447,8 +452,8 @@ function renderCameraTrendCharts(telemetryByDevice) {
                 data: {
                     labels,
                     datasets: [
-                        { label: 'Temp', borderColor: '#ef4444', data: sensors.temperature.map((row) => row.value), yAxisID: 'y' },
-                        { label: 'Humidity', borderColor: '#0ea5e9', data: sensors.humidity.map((row) => row.value), yAxisID: 'y1' }
+                        { label: 'Temp', borderColor: CHART_COLORS.temperature, data: sensors.temperature.map((row) => row.value), yAxisID: 'y' },
+                        { label: 'Humidity', borderColor: CHART_COLORS.humidity, data: sensors.humidity.map((row) => row.value), yAxisID: 'y1' }
                     ]
                 },
                 options: overviewChartOptions
@@ -502,9 +507,9 @@ function renderTelemetryByCameraCharts(telemetryByDevice) {
             grid.appendChild(card);
 
             telemetryCameraCharts.push(
-                createTelemetrySensorChart(tempChartId, rows, 'temperature', 'Temperature (°C)', '#ef4444'),
-                createTelemetrySensorChart(humChartId, rows, 'humidity', 'Humidity (%)', '#0ea5e9'),
-                createTelemetrySensorChart(battChartId, rows, 'battery', 'Battery (V)', '#10b981')
+                createTelemetrySensorChart(tempChartId, rows, 'temperature', 'Temperature (°C)', CHART_COLORS.temperature),
+                createTelemetrySensorChart(humChartId, rows, 'humidity', 'Humidity (%)', CHART_COLORS.humidity),
+                createTelemetrySensorChart(battChartId, rows, 'battery', 'Battery (V)', CHART_COLORS.battery)
             );
         });
 }
