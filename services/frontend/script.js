@@ -5,6 +5,12 @@ const CHART_COLORS = {
     humidity: '#4f88c6',
     battery: '#5ea37a'
 };
+const chartTimestampFormatter = new Intl.DateTimeFormat(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+});
 const overviewChartOptions = {
     responsive: true,
     maintainAspectRatio: false,
@@ -42,6 +48,8 @@ async function initApp() {
     [closeBtn, overlay].forEach(el => {
         el.onclick = () => modal.style.display = "none";
     });
+
+    window.addEventListener('resize', resizeVisibleCharts);
 }
 
 function setupNavigation() {
@@ -63,6 +71,11 @@ function setupNavigation() {
             
             // Update Title
             title.textContent = item.textContent.trim().split(' ').slice(1).join(' ');
+
+            requestAnimationFrame(() => {
+                resizeVisibleCharts();
+                setTimeout(resizeVisibleCharts, 80);
+            });
         });
     });
 }
@@ -253,9 +266,9 @@ function renderOverviewByCamera(telemetry, imageCountsByDevice, selectedDevice) 
                     <span>Serial: ${escapeHtml(serial)}</span>
                 </div>
                 <div class="camera-overview-stats">
-                    ${renderCameraStat('Avg Temp', formatMetric(getAverageValue(rows, 'temperature'), '°C'))}
-                    ${renderCameraStat('Avg Humidity', formatMetric(getAverageValue(rows, 'humidity'), '%'))}
-                    ${renderCameraStat('Avg Battery', formatMetric(getAverageValue(rows, 'battery'), 'V'))}
+                    ${renderCameraStat('Last Temp', formatMetric(getLatestSensorValue(rows, 'temperature'), '°C'))}
+                    ${renderCameraStat('Last Humidity', formatMetric(getLatestSensorValue(rows, 'humidity'), '%'))}
+                    ${renderCameraStat('Last Battery', formatMetric(getLatestSensorValue(rows, 'battery'), 'V'))}
                     ${renderCameraStat('Images', `${imageCountsByDevice?.[serial] || 0}`)}
                 </div>
                 <div class="camera-overview-footer">
@@ -287,6 +300,20 @@ function getAverageValue(rows, sensorType) {
     }
 
     return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function getLatestSensorValue(rows, sensorType) {
+    const latestRow = rows
+        .filter((row) => row.sensor_type === sensorType && row.timestamp)
+        .reduce((latest, row) => {
+            if (!latest) {
+                return row;
+            }
+
+            return new Date(row.timestamp) > new Date(latest.timestamp) ? row : latest;
+        }, null);
+
+    return latestRow ? latestRow.value : null;
 }
 
 function getLatestTimestamp(rows) {
@@ -380,7 +407,7 @@ function updateCharts(data, selectedDevice) {
     } else {
         clearCameraTrendCharts();
         clearTelemetryByCameraCharts();
-        const labels = sensors.temperature.map(d => new Date(d.timestamp).toLocaleTimeString());
+        const labels = sensors.temperature.map((d) => formatChartTimestamp(d.timestamp));
         mainCombinedChart.data.labels = labels;
         mainCombinedChart.data.datasets[0].data = sensors.temperature.map(d => d.value);
         mainCombinedChart.data.datasets[1].data = sensors.humidity.map(d => d.value);
@@ -389,7 +416,7 @@ function updateCharts(data, selectedDevice) {
 
     // Update Individual
     const update = (chart, sData) => {
-        chart.data.labels = sData.map(d => new Date(d.timestamp).toLocaleTimeString());
+        chart.data.labels = sData.map((d) => formatChartTimestamp(d.timestamp));
         chart.data.datasets[0].data = sData.map(d => d.value);
         chart.update();
     };
@@ -446,7 +473,7 @@ function renderCameraTrendCharts(telemetryByDevice) {
                 temperature: rows.filter((row) => row.sensor_type === 'temperature').reverse(),
                 humidity: rows.filter((row) => row.sensor_type === 'humidity').reverse()
             };
-            const labels = sensors.temperature.map((row) => new Date(row.timestamp).toLocaleTimeString());
+            const labels = sensors.temperature.map((row) => formatChartTimestamp(row.timestamp));
             const chart = new Chart(document.getElementById(chartId), {
                 type: 'line',
                 data: {
@@ -531,7 +558,7 @@ function createTelemetrySensorChart(chartId, rows, sensorType, label, color) {
     return new Chart(document.getElementById(chartId), {
         type: 'line',
         data: {
-            labels: sensorRows.map((row) => new Date(row.timestamp).toLocaleTimeString()),
+            labels: sensorRows.map((row) => formatChartTimestamp(row.timestamp)),
             datasets: [{
                 label,
                 borderColor: color,
@@ -546,6 +573,32 @@ function createTelemetrySensorChart(chartId, rows, sensorType, label, color) {
             plugins: { legend: { position: 'bottom' } },
             scales: { x: { display: false } }
         }
+    });
+}
+
+function formatChartTimestamp(timestamp) {
+    if (!timestamp) {
+        return '';
+    }
+
+    return chartTimestampFormatter.format(new Date(timestamp));
+}
+
+function getAllCharts() {
+    return [
+        mainCombinedChart,
+        tempChart,
+        humChart,
+        battChart,
+        ...overviewCameraCharts,
+        ...telemetryCameraCharts
+    ].filter(Boolean);
+}
+
+function resizeVisibleCharts() {
+    getAllCharts().forEach((chart) => {
+        chart.resize();
+        chart.update('none');
     });
 }
 
