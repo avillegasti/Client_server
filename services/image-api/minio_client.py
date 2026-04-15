@@ -11,7 +11,7 @@ minio_cfg = config.get("minio", {})
 MINIO_ENDPOINT = minio_cfg.get("endpoint", "localhost:9000")
 MINIO_ACCESS_KEY = minio_cfg.get("access_key", "minioadmin")
 MINIO_SECRET_KEY = minio_cfg.get("secret_key", "minioadmin")
-MINIO_BUCKET = minio_cfg.get("bucket", "os-bru-images")
+MINIO_BUCKET = minio_cfg.get("bucket", "images")
 MINIO_SECURE = minio_cfg.get("secure", False)
 
 

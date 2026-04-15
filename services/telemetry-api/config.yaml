@@ -1,6 +1,6 @@
 # MQTT Configuration
 mqtt:
-  broker: "84.88.36.25"
+  broker: "192.168.129.131"
   port: 1883
   user: "admin"
   pass: "i2cati2cat"
@@ -8,7 +8,7 @@ mqtt:
 
 # Minio Object Storage
 minio:
-  endpoint: "84.88.36.22:9000"
+  endpoint: "192.168.129.131:9000"
   access_key: "minioadmin"
   secret_key: "change_this_to_a_long_password"
   bucket: "images"

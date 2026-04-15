@@ -215,16 +215,19 @@ function updateGallery(images) {
     const grid = document.getElementById('imageGrid');
     grid.innerHTML = '';
     images.forEach(img => {
+        // Ensure the URL is prefixed with API_BASE if it's not already
+        const imageUrl = img.url.startsWith(API_BASE) ? img.url : `${API_BASE}${img.url}`;
+        
         const card = document.createElement('div');
         card.className = 'image-card';
         card.innerHTML = `
-            <img src="${img.url}" alt="${img.name}" loading="lazy">
+            <img src="${imageUrl}" alt="${img.name}" loading="lazy">
             <div class="image-info">
                 <strong>${img.name}</strong>
                 <small>${img.last_modified}</small>
             </div>
         `;
-        card.onclick = () => showImage(img.url, img.name);
+        card.onclick = () => showImage(imageUrl, img.name);
         grid.appendChild(card);
     });
 }

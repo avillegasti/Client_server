@@ -1,4 +1,5 @@
 const CONFIG = {
-    // When using the Gateway, all requests go to the same host
-    API_BASE: window.location.origin
+    // Dynamically determine the base path (e.g., "/" or "/app")
+    // This works whether you access it via the host proxy (/app/) or directly (port 800)
+    API_BASE: window.location.pathname.slice(0, window.location.pathname.lastIndexOf('/'))
 };
