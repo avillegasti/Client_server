@@ -1,13 +1,11 @@
 import paho.mqtt.client as mqtt
 import json
 import logging
+from logging.handlers import RotatingFileHandler
+from pathlib import Path
 from database import get_db_connection, get_device_id
 from config import config
 import time
-
-# Logger setup
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("ingestor")
 
 # MQTT Config
 mqtt_cfg = config.get("mqtt", {})
@@ -17,8 +15,58 @@ MQTT_USER = mqtt_cfg.get("user", "")
 MQTT_PASS = mqtt_cfg.get("pass", "")
 MQTT_TOPIC_PREFIX = mqtt_cfg.get("topic_prefix", "devices/os_bru")
 
+logging_cfg = config.get("logging", {})
+LOG_LEVEL_NAME = str(logging_cfg.get("level", "INFO")).upper()
+LOG_LEVEL = getattr(logging, LOG_LEVEL_NAME, logging.INFO)
+LOG_FILE = Path(logging_cfg.get("file", "logs/ingestor.log"))
+LOG_MAX_BYTES = int(logging_cfg.get("max_bytes", 1048576))
+LOG_BACKUP_COUNT = int(logging_cfg.get("backup_count", 5))
+LOG_MQTT_MESSAGES = bool(logging_cfg.get("log_mqtt_messages", True))
+MQTT_PAYLOAD_PREVIEW_BYTES = int(logging_cfg.get("mqtt_payload_preview_bytes", 512))
+
 # Simple Cache to avoid hitting DB for every message
 device_cache = {}
+
+
+def configure_logger():
+    logger_instance = logging.getLogger("ingestor")
+    logger_instance.setLevel(LOG_LEVEL)
+    logger_instance.propagate = False
+
+    if logger_instance.handlers:
+        return logger_instance
+
+    formatter = logging.Formatter(
+        "%(asctime)s %(levelname)s [%(name)s] %(message)s"
+    )
+
+    stream_handler = logging.StreamHandler()
+    stream_handler.setLevel(LOG_LEVEL)
+    stream_handler.setFormatter(formatter)
+    logger_instance.addHandler(stream_handler)
+
+    LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    file_handler = RotatingFileHandler(
+        LOG_FILE,
+        maxBytes=LOG_MAX_BYTES,
+        backupCount=LOG_BACKUP_COUNT,
+        encoding="utf-8",
+    )
+    file_handler.setLevel(LOG_LEVEL)
+    file_handler.setFormatter(formatter)
+    logger_instance.addHandler(file_handler)
+
+    return logger_instance
+
+
+logger = configure_logger()
+
+
+def payload_preview(payload_bytes):
+    preview = payload_bytes[:MQTT_PAYLOAD_PREVIEW_BYTES].decode("utf-8", errors="replace")
+    if len(payload_bytes) > MQTT_PAYLOAD_PREVIEW_BYTES:
+        preview += "...<truncated>"
+    return preview
 
 def on_connect(client, userdata, flags, rc):
     if rc == 0:
@@ -31,6 +79,16 @@ def on_connect(client, userdata, flags, rc):
 
 def on_message(client, userdata, msg):
     try:
+        preview = payload_preview(msg.payload)
+        if LOG_MQTT_MESSAGES:
+            logger.info(
+                "MQTT message received topic=%s qos=%s retain=%s payload=%s",
+                msg.topic,
+                msg.qos,
+                msg.retain,
+                preview,
+            )
+
         topic_parts = msg.topic.split('/')
         device_serial = topic_parts[len(MQTT_TOPIC_PREFIX.split('/'))]
         
@@ -45,7 +103,7 @@ def on_message(client, userdata, msg):
         
         device_id = device_cache[device_serial]
         
-        payload = json.loads(msg.payload.decode())
+        payload = json.loads(msg.payload.decode("utf-8"))
         timestamp = payload.get("timestamp")
         temperature = payload.get("temperature")
         humidity = payload.get("humidity")
@@ -67,16 +125,22 @@ def on_message(client, userdata, msg):
             cursor.execute(sql, (device_id, timestamp, temperature, humidity, voltage))
             conn.commit()
             conn.close()
-            logger.debug(f"Stored telemetry for {device_serial} (ID: {device_id}) at {timestamp}")
+            logger.info(
+                "Stored telemetry device=%s device_id=%s timestamp=%s",
+                device_serial,
+                device_id,
+                timestamp,
+            )
             
     except Exception as e:
-        logger.error(f"Error processing message: {e}")
+        logger.exception("Error processing MQTT message on topic=%s: %s", msg.topic, e)
 
 def run():
     client = mqtt.Client()
     if MQTT_USER and MQTT_PASS:
         client.username_pw_set(MQTT_USER, MQTT_PASS)
     
+    client.enable_logger(logger)
     client.on_connect = on_connect
     client.on_message = on_message
     

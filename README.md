@@ -33,3 +33,12 @@ Professional, scalable dashboard and API suite for OS-BRU IoT devices.
 
 ## Manual Setup (Development)
 If you prefer to run services manually, navigate to each service in `services/`, install `requirements.txt`, and run `python main.py`. Ensure you have a running PostgreSQL instance and a Gateway (or adjust frontend `config.js`).
+
+## MQTT Logging
+The ingestor now writes MQTT activity to `services/ingestor/logs/ingestor.log` and also prints the same entries to stdout. You can tune the behavior in `services/ingestor/config.yaml` under `logging`:
+
+- `level`: standard Python log level such as `INFO` or `DEBUG`
+- `file`: log file path
+- `max_bytes` and `backup_count`: rotation settings
+- `log_mqtt_messages`: enable or disable per-message MQTT logging
+- `mqtt_payload_preview_bytes`: limit how much payload content is written per message

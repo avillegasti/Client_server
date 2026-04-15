@@ -6,6 +6,15 @@ mqtt:
   pass: "i2cati2cat"
   topic_prefix: "devices/os_bru"
 
+# Ingestor Logging
+logging:
+  level: "INFO"
+  file: "logs/ingestor.log"
+  max_bytes: 1048576
+  backup_count: 5
+  log_mqtt_messages: true
+  mqtt_payload_preview_bytes: 512
+
 # Minio Object Storage
 minio:
   endpoint: "192.168.129.131:9000"

@@ -279,6 +279,186 @@ body {
     gap: 1.5rem;
 }
 
+.overview-chart-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+    gap: 1.5rem;
+}
+
+.camera-trend-section {
+    margin-top: 1rem;
+}
+
+.overview-chart-card .chart-body {
+    height: 320px;
+}
+
+.telemetry-camera-section {
+    margin-top: 1rem;
+}
+
+.telemetry-camera-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+    gap: 1.5rem;
+}
+
+.telemetry-camera-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 0.75rem;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+}
+
+.telemetry-camera-card-header {
+    padding: 1.25rem 1.25rem 1rem;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%);
+}
+
+.telemetry-camera-card-header h3 {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text-main);
+}
+
+.telemetry-camera-card-header span {
+    display: block;
+    margin-top: 0.25rem;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+
+.telemetry-camera-charts {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1rem;
+    padding: 1.25rem;
+}
+
+.telemetry-camera-chart {
+    background: #f8fafc;
+    border: 1px solid var(--border);
+    border-radius: 0.65rem;
+    padding: 1rem;
+}
+
+.telemetry-camera-chart .chart-header {
+    margin-bottom: 1rem;
+    padding-bottom: 0.6rem;
+}
+
+.telemetry-camera-chart .chart-header h4 {
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+
+.telemetry-camera-chart .chart-body {
+    height: 220px;
+}
+
+.camera-overview-section {
+    margin-top: 2rem;
+}
+
+.section-heading {
+    margin-bottom: 1rem;
+}
+
+.section-heading h2 {
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: var(--text-main);
+}
+
+.section-heading p {
+    color: var(--text-muted);
+    font-size: 0.95rem;
+    margin-top: 0.25rem;
+}
+
+.camera-overview-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.5rem;
+}
+
+.camera-overview-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 0.75rem;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+}
+
+.camera-overview-card-header {
+    padding: 1.25rem 1.25rem 1rem;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%);
+}
+
+.camera-overview-card-header h3 {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text-main);
+}
+
+.camera-overview-card-header span {
+    display: block;
+    margin-top: 0.25rem;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+
+.camera-overview-stats {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.9rem;
+    padding: 1.25rem;
+}
+
+.camera-overview-stat {
+    background: #f8fafc;
+    border: 1px solid var(--border);
+    border-radius: 0.65rem;
+    padding: 0.9rem 1rem;
+}
+
+.camera-overview-stat-label {
+    display: block;
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.camera-overview-stat-value {
+    display: block;
+    margin-top: 0.35rem;
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--text-main);
+}
+
+.camera-overview-footer {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0 1.25rem 1.25rem;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+
+.empty-state {
+    background: var(--card-bg);
+    border: 1px dashed var(--border);
+    border-radius: 0.75rem;
+    padding: 1.25rem;
+    color: var(--text-muted);
+}
+
 /* Image Gallery */
 .image-grid {
     display: grid;
@@ -428,4 +608,7 @@ tr:hover {
 @media (max-width: 768px) {
     .top-bar { flex-direction: column; height: auto; padding: 1rem; gap: 1rem; }
     .top-controls { flex-wrap: wrap; justify-content: center; }
+    .camera-overview-stats { grid-template-columns: 1fr; }
+    .camera-overview-footer { flex-direction: column; }
+    .telemetry-camera-grid { grid-template-columns: 1fr; }
 }

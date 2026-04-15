@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OS-BRU | Central Dashboard</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=20260415-5">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
@@ -98,7 +98,7 @@
                 </div>
                 
                 <div class="overview-charts">
-                    <div class="chart-container large">
+                    <div id="mainOverviewChartContainer" class="chart-container large">
                         <div class="chart-header">
                             <h3>Environmental Trends</h3>
                         </div>
@@ -106,12 +106,31 @@
                             <canvas id="mainCombinedChart"></canvas>
                         </div>
                     </div>
+
+                    <div id="cameraTrendSection" class="camera-trend-section hidden">
+                        <div class="section-heading">
+                            <h2>Environmental Trends by Camera</h2>
+                            <p>Each chart shows temperature and humidity for one camera.</p>
+                        </div>
+                        <div id="cameraTrendGrid" class="overview-chart-grid"></div>
+                    </div>
+                </div>
+
+                <div id="cameraOverviewSection" class="camera-overview-section hidden">
+                    <div class="section-heading">
+                        <h2>Overview by Camera</h2>
+                        <p>Each camera shows its own telemetry summary and image count.</p>
+                    </div>
+                    <div id="cameraOverviewGrid" class="camera-overview-grid"></div>
+                    <div id="cameraOverviewEmpty" class="empty-state hidden">
+                        No per-camera data available for the current filters.
+                    </div>
                 </div>
             </section>
 
             <!-- Telemetry Section -->
             <section id="section-telemetry" class="content-section hidden">
-                <div class="charts-grid">
+                <div id="mainTelemetryCharts" class="charts-grid">
                     <div class="chart-container">
                         <div class="chart-header"><h3>Temperature (°C)</h3></div>
                         <div class="chart-body"><canvas id="tempChart"></canvas></div>
@@ -124,6 +143,14 @@
                         <div class="chart-header"><h3>Battery (V)</h3></div>
                         <div class="chart-body"><canvas id="battChart"></canvas></div>
                     </div>
+                </div>
+
+                <div id="telemetryByCameraSection" class="telemetry-camera-section hidden">
+                    <div class="section-heading">
+                        <h2>Telemetry by Camera</h2>
+                        <p>Each camera shows its own temperature, humidity, and battery history.</p>
+                    </div>
+                    <div id="telemetryByCameraGrid" class="telemetry-camera-grid"></div>
                 </div>
             </section>
 
@@ -168,7 +195,7 @@
         </div>
     </div>
 
-    <script src="config.js?v=20260415"></script>
-    <script src="script.js?v=20260415"></script>
+    <script src="config.js?v=20260415-5"></script>
+    <script src="script.js?v=20260415-5"></script>
 </body>
 </html>
