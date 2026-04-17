@@ -124,10 +124,14 @@ async function loadData() {
 
     const telemetryParams = new URLSearchParams({ limit: '1000' });
     const imageParams = new URLSearchParams();
+    const overviewParams = new URLSearchParams({ trend_points: '8' });
+    const seriesParams = new URLSearchParams({ points_per_device: '100' });
 
     if (device) {
         telemetryParams.set('device', device);
         imageParams.set('device', device);
+        overviewParams.set('device', device);
+        seriesParams.set('device', device);
         if (camera) {
             imageParams.set('camera', camera);
         }
@@ -135,70 +139,32 @@ async function loadData() {
     if (startDate) {
         telemetryParams.set('start_date', startDate);
         imageParams.set('start_date', startDate);
+        overviewParams.set('start_date', startDate);
+        seriesParams.set('start_date', startDate);
     }
     if (endDate) {
         telemetryParams.set('end_date', endDate);
         imageParams.set('end_date', endDate);
+        overviewParams.set('end_date', endDate);
+        seriesParams.set('end_date', endDate);
     }
 
     try {
-        const [telemetry, images] = await Promise.all([
+        const [telemetry, images, overview, telemetrySeries] = await Promise.all([
             fetch(`${API_BASE}/api/telemetry/telemetry?${telemetryParams.toString()}`).then(r => r.json()),
-            fetch(`${API_BASE}/api/images/images?${imageParams.toString()}`).then(r => r.json())
+            fetch(`${API_BASE}/api/images/images?${imageParams.toString()}`).then(r => r.json()),
+            fetch(`${API_BASE}/api/telemetry/overview?${overviewParams.toString()}`).then(r => r.json()),
+            fetch(`${API_BASE}/api/telemetry/series?${seriesParams.toString()}`).then(r => r.json())
         ]);
-        const imageCountsByDevice = device
-            ? { [device]: images.length }
-            : await fetchImageCountsByDevice(getOverviewDeviceSerials(telemetry), startDate, endDate);
 
         updateStats(telemetry, images);
-        updateCharts(telemetry, device);
-        renderOverviewByCamera(telemetry, imageCountsByDevice, device);
+        updateCharts(telemetry, overview, telemetrySeries, device);
+        renderOverviewByCamera(overview, device);
         updateTable(telemetry);
         updateGallery(images);
     } catch (e) {
         console.error("Error loading data:", e);
     }
-}
-
-function getOverviewDeviceSerials(telemetry) {
-    const telemetryDevices = new Set(
-        telemetry
-            .map(row => row.device_name)
-            .filter(Boolean)
-    );
-
-    return telemetryDevices.size > 0
-        ? Array.from(telemetryDevices)
-        : Array.from(deviceDirectory.keys());
-}
-
-async function fetchImageCountsByDevice(deviceSerials, startDate, endDate) {
-    const counts = {};
-
-    await Promise.all(deviceSerials.map(async (serial) => {
-        const params = new URLSearchParams({ device: serial });
-        const camera = getCameraFolder(serial);
-        if (camera) {
-            params.set('camera', camera);
-        }
-        if (startDate) {
-            params.set('start_date', startDate);
-        }
-        if (endDate) {
-            params.set('end_date', endDate);
-        }
-
-        try {
-            const response = await fetch(`${API_BASE}/api/images/images?${params.toString()}`);
-            const images = await response.json();
-            counts[serial] = Array.isArray(images) ? images.length : 0;
-        } catch (error) {
-            console.error(`Error loading images for ${serial}:`, error);
-            counts[serial] = 0;
-        }
-    }));
-
-    return counts;
 }
 
 function updateStats(telemetry, images) {
@@ -214,7 +180,7 @@ function updateStats(telemetry, images) {
     document.getElementById('total-images').textContent = images.length;
 }
 
-function renderOverviewByCamera(telemetry, imageCountsByDevice, selectedDevice) {
+function renderOverviewByCamera(overviewData, selectedDevice) {
     const section = document.getElementById('cameraOverviewSection');
     const grid = document.getElementById('cameraOverviewGrid');
     const emptyState = document.getElementById('cameraOverviewEmpty');
@@ -226,54 +192,34 @@ function renderOverviewByCamera(telemetry, imageCountsByDevice, selectedDevice) 
         return;
     }
 
-    const telemetryByDevice = new Map();
-    telemetry.forEach((row) => {
-        const key = row.device_name || 'Unknown device';
-        if (!telemetryByDevice.has(key)) {
-            telemetryByDevice.set(key, []);
-        }
-        telemetryByDevice.get(key).push(row);
-    });
-
-    const deviceSerials = Array.from(new Set([
-        ...telemetryByDevice.keys(),
-        ...Object.keys(imageCountsByDevice || {})
-    ])).filter((serial) => {
-        const deviceTelemetry = telemetryByDevice.get(serial) || [];
-        const imageCount = imageCountsByDevice?.[serial] || 0;
-        return deviceTelemetry.length > 0 || imageCount > 0;
-    });
-
-    if (deviceSerials.length <= 1) {
+    if (!overviewData.length || overviewData.length <= 1) {
         section.classList.add('hidden');
         return;
     }
 
     section.classList.remove('hidden');
-    emptyState.classList.toggle('hidden', deviceSerials.length > 0);
+    emptyState.classList.toggle('hidden', overviewData.length > 0);
 
-    deviceSerials
-        .sort((left, right) => getDeviceLabel(left).localeCompare(getDeviceLabel(right)))
-        .forEach((serial) => {
-            const rows = telemetryByDevice.get(serial) || [];
-            const latestTimestamp = getLatestTimestamp(rows);
-
+    overviewData
+        .slice()
+        .sort((left, right) => getDeviceLabel(left.serial).localeCompare(getDeviceLabel(right.serial)))
+        .forEach((item) => {
             const card = document.createElement('article');
             card.className = 'camera-overview-card';
             card.innerHTML = `
                 <div class="camera-overview-card-header">
-                    <h3>${escapeHtml(getDeviceLabel(serial))}</h3>
-                    <span>Serial: ${escapeHtml(serial)}</span>
+                    <h3>${escapeHtml(getDeviceLabel(item.serial))}</h3>
+                    <span>Serial: ${escapeHtml(item.serial)}</span>
                 </div>
                 <div class="camera-overview-stats">
-                    ${renderCameraStat('Last Temp', formatMetric(getLatestSensorValue(rows, 'temperature'), '°C'))}
-                    ${renderCameraStat('Last Humidity', formatMetric(getLatestSensorValue(rows, 'humidity'), '%'))}
-                    ${renderCameraStat('Last Battery', formatMetric(getLatestSensorValue(rows, 'battery'), 'V'))}
-                    ${renderCameraStat('Images', `${imageCountsByDevice?.[serial] || 0}`)}
+                    ${renderCameraStat('Last Temp', formatMetric(item.temperature, '°C'))}
+                    ${renderCameraStat('Last Humidity', formatMetric(item.humidity, '%'))}
+                    ${renderCameraStat('Last Battery', formatMetric(item.battery, 'V'))}
+                    ${renderCameraStat('Images', `${item.image_count || 0}`)}
                 </div>
                 <div class="camera-overview-footer">
                     <span>Latest update</span>
-                    <span>${latestTimestamp ? new Date(latestTimestamp).toLocaleString() : 'No telemetry'}</span>
+                    <span>${item.latest_timestamp ? new Date(item.latest_timestamp).toLocaleString() : 'No telemetry'}</span>
                 </div>
             `;
             grid.appendChild(card);
@@ -287,47 +233,6 @@ function renderCameraStat(label, value) {
             <span class="camera-overview-stat-value">${value}</span>
         </div>
     `;
-}
-
-function getAverageValue(rows, sensorType) {
-    const values = rows
-        .filter((row) => row.sensor_type === sensorType)
-        .map((row) => row.value)
-        .filter((value) => Number.isFinite(value));
-
-    if (values.length === 0) {
-        return null;
-    }
-
-    return values.reduce((sum, value) => sum + value, 0) / values.length;
-}
-
-function getLatestSensorValue(rows, sensorType) {
-    const latestRow = rows
-        .filter((row) => row.sensor_type === sensorType && row.timestamp)
-        .reduce((latest, row) => {
-            if (!latest) {
-                return row;
-            }
-
-            return new Date(row.timestamp) > new Date(latest.timestamp) ? row : latest;
-        }, null);
-
-    return latestRow ? latestRow.value : null;
-}
-
-function getLatestTimestamp(rows) {
-    return rows.reduce((latest, row) => {
-        if (!row.timestamp) {
-            return latest;
-        }
-
-        if (!latest) {
-            return row.timestamp;
-        }
-
-        return new Date(row.timestamp) > new Date(latest) ? row.timestamp : latest;
-    }, null);
 }
 
 function getDeviceLabel(serial) {
@@ -388,25 +293,22 @@ function initCharts() {
     battChart = createChart('battChart', 'Battery (V)', CHART_COLORS.battery);
 }
 
-function updateCharts(data, selectedDevice) {
+function updateCharts(data, overviewData, telemetrySeries, selectedDevice) {
     const sensors = {
         temperature: data.filter(d => d.sensor_type === 'temperature').reverse(),
         humidity: data.filter(d => d.sensor_type === 'humidity').reverse(),
         battery: data.filter(d => d.sensor_type === 'battery').reverse()
     };
 
-    const telemetryByDevice = groupTelemetryByDevice(data);
-    const deviceSerials = Array.from(telemetryByDevice.keys());
-    const showPerCameraCharts = !selectedDevice && deviceSerials.length > 1;
+    const showPerCameraOverview = !selectedDevice && overviewData.length > 1;
+    const showPerCameraTelemetry = !selectedDevice && telemetrySeries.length > 1;
 
-    toggleOverviewTrendMode(showPerCameraCharts);
+    toggleOverviewTrendMode(showPerCameraOverview);
 
-    if (showPerCameraCharts) {
-        renderCameraTrendCharts(telemetryByDevice);
-        renderTelemetryByCameraCharts(telemetryByDevice);
+    if (showPerCameraOverview) {
+        renderCameraTrendCharts(overviewData);
     } else {
         clearCameraTrendCharts();
-        clearTelemetryByCameraCharts();
         const labels = sensors.temperature.map((d) => formatChartTimestamp(d.timestamp));
         mainCombinedChart.data.labels = labels;
         mainCombinedChart.data.datasets[0].data = sensors.temperature.map(d => d.value);
@@ -414,28 +316,27 @@ function updateCharts(data, selectedDevice) {
         mainCombinedChart.update();
     }
 
-    // Update Individual
-    const update = (chart, sData) => {
-        chart.data.labels = sData.map((d) => formatChartTimestamp(d.timestamp));
-        chart.data.datasets[0].data = sData.map(d => d.value);
-        chart.update();
-    };
-
-    update(tempChart, sensors.temperature);
-    update(humChart, sensors.humidity);
-    update(battChart, sensors.battery);
+    if (showPerCameraTelemetry) {
+        renderTelemetryByCameraCharts(telemetrySeries);
+    } else {
+        clearTelemetryByCameraCharts();
+        updateSingleTelemetryCharts(telemetrySeries, sensors);
+    }
 }
 
-function groupTelemetryByDevice(data) {
-    const telemetryByDevice = new Map();
-    data.forEach((row) => {
-        const key = row.device_name || 'Unknown device';
-        if (!telemetryByDevice.has(key)) {
-            telemetryByDevice.set(key, []);
-        }
-        telemetryByDevice.get(key).push(row);
-    });
-    return telemetryByDevice;
+function updateSingleTelemetryCharts(telemetrySeries, fallbackSensors) {
+    const seriesItem = telemetrySeries[0];
+    const series = seriesItem?.series || {};
+
+    updateSingleTelemetryChart(tempChart, series.temperature || fallbackSensors.temperature);
+    updateSingleTelemetryChart(humChart, series.humidity || fallbackSensors.humidity);
+    updateSingleTelemetryChart(battChart, series.battery || fallbackSensors.battery);
+}
+
+function updateSingleTelemetryChart(chart, seriesRows) {
+    chart.data.labels = seriesRows.map((row) => formatChartTimestamp(row.timestamp));
+    chart.data.datasets[0].data = seriesRows.map((row) => row.value);
+    chart.update();
 }
 
 function toggleOverviewTrendMode(showPerCameraCharts) {
@@ -449,19 +350,20 @@ function clearCameraTrendCharts() {
     document.getElementById('cameraTrendGrid').innerHTML = '';
 }
 
-function renderCameraTrendCharts(telemetryByDevice) {
+function renderCameraTrendCharts(overviewData) {
     clearCameraTrendCharts();
 
     const grid = document.getElementById('cameraTrendGrid');
-    Array.from(telemetryByDevice.entries())
-        .sort(([left], [right]) => getDeviceLabel(left).localeCompare(getDeviceLabel(right)))
-        .forEach(([serial, rows], index) => {
+    overviewData
+        .filter((item) => item.trend?.temperature?.length || item.trend?.humidity?.length)
+        .sort((left, right) => getDeviceLabel(left.serial).localeCompare(getDeviceLabel(right.serial)))
+        .forEach((item, index) => {
             const chartId = `cameraTrendChart-${index}`;
             const card = document.createElement('div');
             card.className = 'chart-container overview-chart-card';
             card.innerHTML = `
                 <div class="chart-header">
-                    <h3>${escapeHtml(getDeviceLabel(serial))}</h3>
+                    <h3>${escapeHtml(getDeviceLabel(item.serial))}</h3>
                 </div>
                 <div class="chart-body">
                     <canvas id="${chartId}"></canvas>
@@ -469,18 +371,17 @@ function renderCameraTrendCharts(telemetryByDevice) {
             `;
             grid.appendChild(card);
 
-            const sensors = {
-                temperature: rows.filter((row) => row.sensor_type === 'temperature').reverse(),
-                humidity: rows.filter((row) => row.sensor_type === 'humidity').reverse()
-            };
-            const labels = sensors.temperature.map((row) => formatChartTimestamp(row.timestamp));
+            const temperatureTrend = [...(item.trend?.temperature || [])].reverse();
+            const humidityTrend = [...(item.trend?.humidity || [])].reverse();
+            const labelSource = temperatureTrend.length ? temperatureTrend : humidityTrend;
+            const labels = labelSource.map((row) => formatChartTimestamp(row.timestamp));
             const chart = new Chart(document.getElementById(chartId), {
                 type: 'line',
                 data: {
                     labels,
                     datasets: [
-                        { label: 'Temp', borderColor: CHART_COLORS.temperature, data: sensors.temperature.map((row) => row.value), yAxisID: 'y' },
-                        { label: 'Humidity', borderColor: CHART_COLORS.humidity, data: sensors.humidity.map((row) => row.value), yAxisID: 'y1' }
+                        { label: 'Temp', borderColor: CHART_COLORS.temperature, data: temperatureTrend.map((row) => row.value), yAxisID: 'y' },
+                        { label: 'Humidity', borderColor: CHART_COLORS.humidity, data: humidityTrend.map((row) => row.value), yAxisID: 'y1' }
                     ]
                 },
                 options: overviewChartOptions
@@ -497,23 +398,24 @@ function clearTelemetryByCameraCharts() {
     document.getElementById('mainTelemetryCharts').classList.remove('hidden');
 }
 
-function renderTelemetryByCameraCharts(telemetryByDevice) {
+function renderTelemetryByCameraCharts(telemetrySeries) {
     clearTelemetryByCameraCharts();
 
     const grid = document.getElementById('telemetryByCameraGrid');
     const section = document.getElementById('telemetryByCameraSection');
     const mainCharts = document.getElementById('mainTelemetryCharts');
 
-    if (telemetryByDevice.size <= 1) {
+    if (telemetrySeries.length <= 1) {
         return;
     }
 
     section.classList.remove('hidden');
     mainCharts.classList.add('hidden');
 
-    Array.from(telemetryByDevice.entries())
-        .sort(([left], [right]) => getDeviceLabel(left).localeCompare(getDeviceLabel(right)))
-        .forEach(([serial, rows], index) => {
+    telemetrySeries
+        .slice()
+        .sort((left, right) => getDeviceLabel(left.serial).localeCompare(getDeviceLabel(right.serial)))
+        .forEach((item, index) => {
             const tempChartId = `telemetry-camera-temp-${index}`;
             const humChartId = `telemetry-camera-hum-${index}`;
             const battChartId = `telemetry-camera-batt-${index}`;
@@ -522,8 +424,8 @@ function renderTelemetryByCameraCharts(telemetryByDevice) {
             card.className = 'telemetry-camera-card';
             card.innerHTML = `
                 <div class="telemetry-camera-card-header">
-                    <h3>${escapeHtml(getDeviceLabel(serial))}</h3>
-                    <span>Serial: ${escapeHtml(serial)}</span>
+                    <h3>${escapeHtml(getDeviceLabel(item.serial))}</h3>
+                    <span>Serial: ${escapeHtml(item.serial)}</span>
                 </div>
                 <div class="telemetry-camera-charts">
                     ${renderTelemetryCameraChartShell('Temperature (°C)', tempChartId)}
@@ -534,9 +436,9 @@ function renderTelemetryByCameraCharts(telemetryByDevice) {
             grid.appendChild(card);
 
             telemetryCameraCharts.push(
-                createTelemetrySensorChart(tempChartId, rows, 'temperature', 'Temperature (°C)', CHART_COLORS.temperature),
-                createTelemetrySensorChart(humChartId, rows, 'humidity', 'Humidity (%)', CHART_COLORS.humidity),
-                createTelemetrySensorChart(battChartId, rows, 'battery', 'Battery (V)', CHART_COLORS.battery)
+                createTelemetrySensorChart(tempChartId, item.series?.temperature || [], 'Temperature (°C)', CHART_COLORS.temperature),
+                createTelemetrySensorChart(humChartId, item.series?.humidity || [], 'Humidity (%)', CHART_COLORS.humidity),
+                createTelemetrySensorChart(battChartId, item.series?.battery || [], 'Battery (V)', CHART_COLORS.battery)
             );
         });
 }
@@ -550,11 +452,7 @@ function renderTelemetryCameraChartShell(title, chartId) {
     `;
 }
 
-function createTelemetrySensorChart(chartId, rows, sensorType, label, color) {
-    const sensorRows = rows
-        .filter((row) => row.sensor_type === sensorType)
-        .reverse();
-
+function createTelemetrySensorChart(chartId, sensorRows, label, color) {
     return new Chart(document.getElementById(chartId), {
         type: 'line',
         data: {
