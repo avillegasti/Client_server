@@ -1,10 +1,18 @@
 # MQTT Configuration
 mqtt:
-  broker: "192.168.129.131"
-  port: 1883
-  user: "admin"
-  pass: "i2cati2cat"
-  topic_prefix: "devices/os_bru"
+  broker: 84.88.36.22
+  compression: false
+  enabled: true
+  password: i2cati2cat
+  port: 8883
+  tls:
+    ca_cert_name: ca.crt
+    client_cert_name: camera1.crt
+    client_key_name: camera1.key
+    enabled: true
+    insecure: true
+  topic_prefix: devices/os_bru
+  username: spacecomms
 
 # Minio Object Storage
 minio:

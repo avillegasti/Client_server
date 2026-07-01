@@ -1,27 +1,58 @@
 import paho.mqtt.client as mqtt
 import json
 import logging
+import os
+import ssl
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from database import get_db_connection, get_device_id
-from config import config
+from config import BASE_DIR, config
 import time
+
+
+def config_bool(value, default=False):
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in ("1", "true", "yes", "on"):
+            return True
+        if normalized in ("0", "false", "no", "off"):
+            return False
+    return bool(value)
+
+
+def resolve_config_path(file_name):
+    if not file_name:
+        return None
+
+    file_path = Path(str(file_name)).expanduser()
+    if file_path.is_absolute():
+        return file_path
+    return BASE_DIR / file_path
+
 
 # MQTT Config
 mqtt_cfg = config.get("mqtt", {})
+MQTT_ENABLED = config_bool(mqtt_cfg.get("enabled"), True)
 MQTT_BROKER = mqtt_cfg.get("broker", "localhost")
 MQTT_PORT = int(mqtt_cfg.get("port", 1883))
-MQTT_USER = mqtt_cfg.get("user", "")
-MQTT_PASS = mqtt_cfg.get("pass", "")
+MQTT_USER = mqtt_cfg.get("username", mqtt_cfg.get("user", ""))
+MQTT_PASS = mqtt_cfg.get("password", mqtt_cfg.get("pass", ""))
 MQTT_TOPIC_PREFIX = mqtt_cfg.get("topic_prefix", "devices/os_bru")
+MQTT_TLS_CFG = mqtt_cfg.get("tls") or {}
+MQTT_TLS_ENABLED = config_bool(MQTT_TLS_CFG.get("enabled"), False)
+MQTT_TLS_INSECURE = config_bool(MQTT_TLS_CFG.get("insecure"), False)
 
 logging_cfg = config.get("logging", {})
 LOG_LEVEL_NAME = str(logging_cfg.get("level", "INFO")).upper()
 LOG_LEVEL = getattr(logging, LOG_LEVEL_NAME, logging.INFO)
-LOG_FILE = Path(logging_cfg.get("file", "logs/ingestor.log"))
+LOG_FILE = resolve_config_path(logging_cfg.get("file", "logs/ingestor.log"))
 LOG_MAX_BYTES = int(logging_cfg.get("max_bytes", 1048576))
 LOG_BACKUP_COUNT = int(logging_cfg.get("backup_count", 5))
-LOG_MQTT_MESSAGES = bool(logging_cfg.get("log_mqtt_messages", True))
+LOG_MQTT_MESSAGES = config_bool(logging_cfg.get("log_mqtt_messages"), True)
 MQTT_PAYLOAD_PREVIEW_BYTES = int(logging_cfg.get("mqtt_payload_preview_bytes", 512))
 
 # Simple Cache to avoid hitting DB for every message
@@ -45,21 +76,69 @@ def configure_logger():
     stream_handler.setFormatter(formatter)
     logger_instance.addHandler(stream_handler)
 
-    LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    file_handler = RotatingFileHandler(
-        LOG_FILE,
-        maxBytes=LOG_MAX_BYTES,
-        backupCount=LOG_BACKUP_COUNT,
-        encoding="utf-8",
-    )
-    file_handler.setLevel(LOG_LEVEL)
-    file_handler.setFormatter(formatter)
-    logger_instance.addHandler(file_handler)
+    if LOG_FILE:
+        try:
+            LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+            file_handler = RotatingFileHandler(
+                LOG_FILE,
+                maxBytes=LOG_MAX_BYTES,
+                backupCount=LOG_BACKUP_COUNT,
+                encoding="utf-8",
+            )
+            file_handler.setLevel(LOG_LEVEL)
+            file_handler.setFormatter(formatter)
+            logger_instance.addHandler(file_handler)
+            logger_instance.info("MQTT logs will be saved to %s", LOG_FILE)
+        except OSError as exc:
+            fallback_file = Path("/tmp") / f"ingestor-{os.getuid()}.log"
+            fallback_handler = RotatingFileHandler(
+                fallback_file,
+                maxBytes=LOG_MAX_BYTES,
+                backupCount=LOG_BACKUP_COUNT,
+                encoding="utf-8",
+            )
+            fallback_handler.setLevel(LOG_LEVEL)
+            fallback_handler.setFormatter(formatter)
+            logger_instance.addHandler(fallback_handler)
+            logger_instance.warning(
+                "Could not write MQTT logs to %s (%s). Falling back to %s",
+                LOG_FILE,
+                exc,
+                fallback_file,
+            )
 
     return logger_instance
 
 
 logger = configure_logger()
+
+
+def get_tls_file_path(config_key):
+    file_path = resolve_config_path(MQTT_TLS_CFG.get(config_key))
+    if file_path and not file_path.exists():
+        raise FileNotFoundError(
+            f"MQTT TLS file configured at mqtt.tls.{config_key} was not found: {file_path}"
+        )
+    return str(file_path) if file_path else None
+
+
+def configure_tls(client):
+    if not MQTT_TLS_ENABLED:
+        return
+
+    ca_certs = get_tls_file_path("ca_cert_name")
+    certfile = get_tls_file_path("client_cert_name")
+    keyfile = get_tls_file_path("client_key_name")
+    cert_reqs = ssl.CERT_NONE if MQTT_TLS_INSECURE else ssl.CERT_REQUIRED
+
+    client.tls_set(
+        ca_certs=ca_certs,
+        certfile=certfile,
+        keyfile=keyfile,
+        cert_reqs=cert_reqs,
+    )
+    client.tls_insecure_set(MQTT_TLS_INSECURE)
+    logger.info("MQTT TLS enabled; insecure certificate verification=%s", MQTT_TLS_INSECURE)
 
 
 def payload_preview(payload_bytes):
@@ -136,9 +215,15 @@ def on_message(client, userdata, msg):
         logger.exception("Error processing MQTT message on topic=%s: %s", msg.topic, e)
 
 def run():
+    if not MQTT_ENABLED:
+        logger.info("MQTT is disabled in config. Ingestor will not connect.")
+        return
+
     client = mqtt.Client()
-    if MQTT_USER and MQTT_PASS:
-        client.username_pw_set(MQTT_USER, MQTT_PASS)
+    configure_tls(client)
+
+    if MQTT_USER:
+        client.username_pw_set(MQTT_USER, MQTT_PASS or None)
     
     client.enable_logger(logger)
     client.on_connect = on_connect
